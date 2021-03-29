@@ -1,0 +1,234 @@
+thực hiện gắn api xong
+
+-------------------------------------
+
+tạo menuNotifier(đồng thời khia báo trong provider_setup):
+
+import 'package:flutter/material.dart';
+import 'package:pet/constants/area.dart';
+import 'package:pet/data/service/business_service.dart';
+import 'package:pet/data/service/food_service.dart';
+import 'package:pet/model/food/menu_category.dart';
+
+class MenuCategoryNotifier extends ChangeNotifier {
+  MenuCategoryNotifier(
+      this.foodService);
+  FoodService foodService;
+
+  List<MenuCategory> menuCategories;
+
+  MenuCategory selectMenuCategories;
+
+  Future<List<MenuCategory>> getListMenuCategory() async{
+    if(menuCategories == null){
+      menuCategories = await foodService.menuCategories(Area.of(AreaCode.GOODS));
+      notifyListeners();
+    }
+  }
+
+  void selectProvince(MenuCategory menuCategory){
+    selectMenuCategories = menuCategory;
+    notifyListeners();
+  }
+}
+
+---------------------------------------------------
+
+gọi menu ra trong trang cần hiển thị :
+
+return Consumer<MenuCategoryNotifier>(
+      builder: (_, provider, __) {
+        var listParent = provider.menuCategories
+            .where((element) => element.parentId == 0)
+            .toList();
+        // var listParent1 = listParent.forEach((c) => _render(c,0,provider));
+        return Drawer(
+
+            /// list cây cấp 1
+            child: Padding(
+          padding: const EdgeInsets.only(top: 35, right: 15, left: 15),
+          child: Column(
+              children: listParent
+                  .map<Widget>((c) => RenderMenu(
+                      data: c,
+                      tab: 0,
+                      menuCategoryNotifier: provider,
+                      onSelectCategory: onSelectCategory))
+                  .toList()),
+        ));
+      },
+    );
+    
+  ---------------------------------------------------- ------
+Hàm Render(), tạo 1 class để thực hiện hàm render:       // Hàm này kiểm tra lần lượt từ trên xuống dưới, kiểm tra xong mới qua thằng khác
+
+import 'package:flutter/material.dart';
+import 'package:pet/constants/app_colors.dart';
+import 'package:pet/model/food/menu_category.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../menu_category_notifier.dart';
+
+// List<String> namesMenu = <String>[];
+String nameMenu = '';
+String imageMenu = '';
+class RenderMenu extends StatefulWidget {
+  final MenuCategory data;
+  final MenuCategoryNotifier menuCategoryNotifier;
+  final onSelectCategory;
+  final bool checkChildBold;
+
+  const RenderMenu(
+      {Key key,
+      this.data,
+      this.tab,
+      this.menuCategoryNotifier,
+      this.onSelectCategory, this.checkChildBold})
+      : super(key: key);
+  @override
+  _RenderMenuState createState() => _RenderMenuState();
+}
+
+class _RenderMenuState extends State<RenderMenu>{
+  bool checkShow = false;
+  double p = 0;
+  EdgeInsets padding;
+  void padingP() {
+    padding = EdgeInsets.only(left: 25);
+  }
+
+  bool checkChild;
+
+  bool checkChildBold = false;
+
+/// kiểm tra xem thằng cha nào có con
+  void checkChildX() {
+    checkChild = widget.menuCategoryNotifier.menuCategories
+        .any((c) => c.parentId == widget.data.id);
+  }
+
+  @override
+  void initState() {
+    // TODO: implement initState
+    padingP();
+    checkChildX();
+    super.initState();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+  
+  /// nếu phát hiện có con, hiển thị danh sách thằng con bên dưới thằng cha
+    if (checkChild) {
+      var listChild = widget.menuCategoryNotifier.menuCategories
+          .where((c) => c.parentId == widget.data.id)
+          .toList();
+      // listChild.map<Widget>((e) => _render(e, tab +1, menuCategoryNotifier));
+      return Padding(
+          padding: EdgeInsets.only(top: 12),
+          child: Column(
+            children: [
+              FlatButton(
+                onPressed: () async{
+                  widget.onSelectCategory(widget.data.id);
+                  Navigator.pop(context);
+                  setState(() {
+                    // namesMenu.insert(0,widget.data.name);
+                    // print(namesMenu);
+                    nameMenu = widget.data.name;
+                    imageMenu = widget.data.imageUrl;
+                  });
+                },
+                child: Container(
+                    padding: EdgeInsets.only(right: 10,left: 8),
+                    height: 45,
+                    alignment: Alignment.center,
+                    child: Row(
+                      children: [
+                        Expanded(
+                            child: Text(
+                          widget.data.name,
+                          style: TextStyle(fontWeight: widget.checkChildBold == true ? FontWeight.normal:FontWeight.bold,fontSize: 15),
+                        )),
+                        checkShow
+                            ? GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    checkShow = false;
+                                  });
+                                },
+                                child: Container(
+                                  alignment: Alignment.center,
+                                  height: 35,
+                                  width: 35,
+                                  child: Center(child: Icon(Icons.keyboard_arrow_up,color: Colors.black,)),
+                                ),
+                              )
+                            : GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              checkShow = true;
+                            });
+                          },
+                          child: Container(
+                            alignment: Alignment.center,
+                            height: 35,
+                            width: 35,
+                            child: Icon(Icons.keyboard_arrow_down,color: Colors.black,),
+                          ),
+                        )
+                      ],
+                    )),
+              ),
+              checkShow
+                  ? Padding(
+                      padding: padding,
+                      child: Column(
+                        children: listChild
+                            .map<Widget>((e) => RenderMenu(
+                                  data: e,
+                                  menuCategoryNotifier:
+                                      widget.menuCategoryNotifier,
+                                  onSelectCategory: widget.onSelectCategory,
+                          checkChildBold: true,
+                                ))
+                            .toList(),
+                      ),
+                    )
+                  : Container(),
+            ],
+          ));
+    } else {
+      return Padding(
+          padding: EdgeInsets.only(top: 12),
+          child: FlatButton(
+            onPressed: () {
+              widget.onSelectCategory(widget.data.id);
+              Navigator.pop(context);
+              setState(() {
+                // namesMenu.insert(0,widget.data.name);
+                // print(namesMenu);
+                nameMenu = widget.data.name;
+                imageMenu = widget.data.imageUrl;
+              });
+            },
+            child: Container(
+              padding: EdgeInsets.all(8),
+              height: 45,
+              alignment: Alignment.center,
+              child: Row(
+                children: [
+                  Text(
+                    widget.data.name,
+                    style: TextStyle(fontWeight: widget.checkChildBold == true ? FontWeight.normal : FontWeight.bold,fontSize: 15),
+                  ),
+                ],
+              ),
+            ),
+          ));
+    }
+  }
+}
+
+
+
