@@ -1,0 +1,275 @@
+model: 
+import 'dart:convert';
+import 'package:can_cu_thanh_doan/data/rest_api.dart';
+import 'package:http/http.dart' as http;
+
+class VungCuModel {
+  String idVung;
+  String idVungParent;
+  String nameVung;
+  String orderVung;
+  String imgVung;
+
+
+  VungCuModel({this.idVung,this.idVungParent,this.nameVung,this.orderVung,this.imgVung} );
+
+  factory VungCuModel.fromMap(Map<String, dynamic> json) {
+    return VungCuModel(
+      idVung: json['id_vung'],
+      idVungParent: json['id_vung_parent'],
+      nameVung: json['name_vung'],
+      orderVung: json['order_vung'],
+      imgVung: json['img_vung']
+    );
+  }
+}
+
+List<VungCuModel> pasedRes(String resBody){
+  final pased = json.decode(resBody).cast<Map<String,dynamic>>();
+  return pased.map<VungCuModel>((json) => VungCuModel.fromMap(json)).toList();
+}
+
+Future<List<VungCuModel>> getVungCu() async{
+  var url = '${RestApi.API_URL}?c=vung-cu&m=list_app';
+  final response = await http.get(url);
+  if(response.statusCode == 200){
+    return pasedRes(response.body);
+  }
+
+}
+
+
+----------------------------------------------------------------------
+gọi ra trong trang đó: 
+
+FutureBuilder<List<VungCuModel>>(
+              future: getVungCu(),
+              builder: (context, snapshot){
+                if(snapshot.hasError) print(snapshot.error);
+                if(snapshot.hasData) {
+
+                  /// danh sách cha với id parent = 0
+                  var listParent =snapshot.data
+                      .where((element) => element.idVungParent == '0')
+                      .toList();
+                  return Column(
+                      children: listParent
+                          .map((c) => RenderMenu(
+                        data: c,
+                        menuCategoryNotifier: snapshot.data,))
+                          .toList());
+                }else{
+                  return CircularProgressIndicator();
+                }
+              },
+            ),
+ -------------------------------------------------------------------------
+ Hàm render:(lặp lại nhiều lần nếu có nhiều cấp bậc trong menu)
+ 
+import 'package:can_cu_thanh_doan/model/vungcu_model.dart';
+import 'package:can_cu_thanh_doan/view/base_detail/base_detail_page.dart';
+import 'package:can_cu_thanh_doan/view/navigator_bar_main/union_base/district/district_page.dart';
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+class RenderMenu extends StatefulWidget {
+  final VungCuModel data;
+  final List<VungCuModel> menuCategoryNotifier;
+  final bool checkChildBold;
+
+  const RenderMenu(
+      {Key key, this.data, this.menuCategoryNotifier, this.checkChildBold})
+      : super(key: key);
+  @override
+  _RenderMenuState createState() => _RenderMenuState();
+}
+
+class _RenderMenuState extends State<RenderMenu> {
+  bool checkShow = false;
+
+  bool checkChild;
+
+
+  /// kiểm tra xem cha có thằng con nào không (idParent Con == id Cha)
+  void checkChildX() {
+    checkChild = widget.menuCategoryNotifier
+        .any((c) => c.idVungParent == widget.data.idVung);
+  }
+
+  @override
+  void initState() {
+    // TODO: implement initState
+    checkChildX();
+    super.initState();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+
+    /// Nếu check thằng cha có con thì get danh sách thằng con ra
+    if (checkChild) {
+
+      /// danh sách con với id parent = id Cha
+      var listChild = widget.menuCategoryNotifier
+          .where((c) => c.idVungParent == widget.data.idVung)
+          .toList();
+      // listChild.map<Widget>((e) => _render(e, tab +1, menuCategoryNotifier));
+      return Column(
+        children: [
+
+          widget.checkChildBold ?? false
+              ? Padding(
+                  padding:
+                      const EdgeInsets.only(bottom: 10, left: 35, right: 35),
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        checkShow = !checkShow;
+                      });
+                    },
+                    child: Container(
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(40),
+                          color: Colors.orange[700]),
+                      padding: EdgeInsets.only(
+                          left: 10, right: 10, top: 12, bottom: 12),
+                      child: Text(
+                        widget.data.nameVung,
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                )
+              : Padding(
+                  padding: EdgeInsets.only(bottom: 20),
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        checkShow = !checkShow;
+                      });
+                    },
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(40),
+                      child: Stack(
+                        children: [
+                          Container(
+                            height: 65,
+                            width: MediaQuery.of(context).size.width * 0.7,
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: widget.data.imgVung != null ? Image.network(
+                                    widget.data.imgVung,
+                                    fit: BoxFit.fill,
+                                  ):Image.asset(
+                                    'assets/province_image/vietnam.jpg',
+                                    fit: BoxFit.fill,
+                                  ),
+                                ),
+                                Container(
+                                  width: 120,
+                                  color: Colors.lightGreen[900],
+                                )
+                              ],
+                            ),
+                          ),
+                          Container(
+                            height: 65,
+                            width: MediaQuery.of(context).size.width * 0.8,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  Colors.lightGreen[900],
+                                  Colors.lightGreen[900],
+                                  Colors.lightGreen[900],
+                                  Colors.lightGreen[900],
+                                  Colors.transparent,
+                                  Colors.transparent,
+                                ],
+                                begin: Alignment.centerRight,
+                                end: Alignment.centerLeft,
+                              ),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                Container(
+                                  padding: EdgeInsets.all(5),
+                                  alignment: Alignment.center,
+                                  width: 170,
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        widget.data.nameVung,
+                                        style: TextStyle(
+                                            fontFamily: 'UTMImpact',
+                                            fontSize: 14,
+                                            color: Colors.white),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              ],
+                            ),
+                          )
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
+          /// Nếu kiểm tra có con thì checkShow để hiển thị danh sách con
+          checkShow
+              ? Column(
+                  children: listChild
+                      .map<Widget>((e) => RenderMenu(
+                            data: e,
+                            menuCategoryNotifier: widget.menuCategoryNotifier,
+                            checkChildBold: true,
+                          ))
+                      .toList(),
+                )
+              : Container(),
+        ],
+      );
+    } else {
+
+      /// Hiện thị dữ liệu không có thằng con nào
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 10, left: 35, right: 35),
+        child: GestureDetector(
+          onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (context) => BaseDetailPage(
+                        idVung: widget.data.idVung,
+                      ))),
+          child: Container(
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(40),
+                color: Colors.orange[700]),
+            padding: EdgeInsets.only(left: 10, right: 10, top: 12, bottom: 12),
+            child: Text(
+              widget.data.nameVung,
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
+    }
+  }
+}
+
+  
